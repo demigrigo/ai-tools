@@ -1,7 +1,7 @@
 ####################################################################
 # inspired by https://karpathy.ai/
 ####################################################################
-
+import sentencepiece as spm
 import requests
 import torch
 import torch.nn as nn
@@ -24,9 +24,28 @@ dropout = 0.2
 torch.manual_seed(1337)
 
 input = requests.get(
-    "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
+    "https://raw.githubusercontent.com/linxOD/ai-tools/main/tiny-auden-musulin.txt"
     )
 text = input.text
+
+# with open('tiny-auden-musulin.txt', 'r', encoding='utf-8') as f:
+#     text = f.read()
+
+# train sentencepiece model from `botchan.txt` and makes `m.model` and `m.vocab`
+# `m.vocab` is just a reference. not used in the segmentation.
+spm.SentencePieceTrainer.train('--input=botchan.txt --model_prefix=m --vocab_size=2000')
+
+# makes segmenter instance and loads the model file (m.model)
+sp = spm.SentencePieceProcessor()
+sp.load('m.model')
+
+# encode: text => id
+tokens = sp.encode_as_ids(text)
+
+# decode: id => text
+#dec = sp.decode_ids(tokens)
+
+vocab_size = sp.get_piece_size()
 
 # here are all the unique characters that occur in this text
 chars = sorted(list(set(text)))
