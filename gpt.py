@@ -2,6 +2,7 @@
 # inspired by https://karpathy.ai/
 ####################################################################
 import sentencepiece as spm
+import tiktoken
 import requests
 import torch
 import torch.nn as nn
@@ -28,36 +29,40 @@ input = requests.get(
     )
 text = input.text
 
-# with open('tiny-auden-musulin.txt', 'r', encoding='utf-8') as f:
-#     text = f.read()
 
-# train sentencepiece model from `botchan.txt` and makes `m.model` and `m.vocab`
-# `m.vocab` is just a reference. not used in the segmentation.
-spm.SentencePieceTrainer.train('--input=botchan.txt --model_prefix=m --vocab_size=2000')
+####################################################################
+## USING SENTENCEPICE
+# spm.SentencePieceTrainer.train('--input=botchan.txt --model_prefix=m --vocab_size=2000')
+# sp = spm.SentencePieceProcessor()
+# sp.load('m.model')
 
-# makes segmenter instance and loads the model file (m.model)
-sp = spm.SentencePieceProcessor()
-sp.load('m.model')
+# # encode: text => id
+# tokens = sp.encode_as_ids(text)
+# # decode: id => text
+# dec = sp.decode_ids(tokens)
 
-# encode: text => id
-tokens = sp.encode_as_ids(text)
+# vocab_size = sp.get_piece_size()
+####################################################################
+####################################################################
+####################################################################
+## USING TIKTOKEN
+encoding = tiktoken.get_encoding("p50k_base")
+tokens = encoding.encode(text)
+vocab_size = len(tokens)
 
-# decode: id => text
-#dec = sp.decode_ids(tokens)
-
-vocab_size = sp.get_piece_size()
+####################################################################
 
 # here are all the unique characters that occur in this text
-chars = sorted(list(set(text)))
-vocab_size = len(chars)
+# chars = sorted(list(set(text)))
+# vocab_size = len(chars)
 # create a mapping from characters to integers
-stoi = { ch:i for i,ch in enumerate(chars) }
-itos = { i:ch for i,ch in enumerate(chars) }
-encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
-decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
+# stoi = { ch:i for i,ch in enumerate(chars) }
+# itos = { i:ch for i,ch in enumerate(chars) }
+# encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
+# decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
 
 # Train and test splits
-data = torch.tensor(encode(text), dtype=torch.long)
+data = torch.tensor(tokens, dtype=torch.long)
 n = int(0.9*len(data)) # first 90% will be train, rest val
 train_data = data[:n]
 val_data = data[n:]
@@ -240,4 +245,20 @@ for iter in range(max_iters):
 
 # generate from the model
 context = torch.zeros((1, 1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=10000)[0].tolist()))
+output = m.generate(context, max_new_tokens=10000)[0].tolist()
+
+# the dataset generates tokens not know by tiktoken library
+# to filter out this tokens use the following:
+err = []
+te = []
+for i in output:
+  try:
+    encoding.decode_single_token_bytes(i)
+    te.append(i)
+  except:
+    err.append(i)
+
+open('tiny-auden-musulin-gpt-tiktoken.txt', 'w').write(encoding.decode(te))
+
+# save the model
+torch.save(model.state_dict(), "gpt-decoder-auden-musulin.pt")
