@@ -1,7 +1,7 @@
 ####################################################################
 # inspired by https://karpathy.ai/
 ####################################################################
-import sentencepiece as spm
+# import sentencepiece as spm
 import tiktoken
 import requests
 import torch
@@ -28,6 +28,9 @@ input = requests.get(
     "https://raw.githubusercontent.com/linxOD/ai-tools/main/tiny-auden-musulin.txt"
     )
 text = input.text
+n = len(text)
+train_data = text[:int(n*0.9)] # first 90% will be train, rest val
+val_data = text[int(n*0.9):]
 
 
 ####################################################################
@@ -46,9 +49,12 @@ text = input.text
 ####################################################################
 ####################################################################
 ## USING TIKTOKEN
-encoding = tiktoken.get_encoding("p50k_base")
-tokens = encoding.encode(text)
-vocab_size = len(tokens)
+encoding = tiktoken.get_encoding("gpt2")
+train_ids = encoding.encode_ordinary(train_data)
+val_ids = encoding.encode_ordinary(val_data)
+vocab_size = len(train_ids)
+print(f"train has {len(train_ids):,} tokens")
+print(f"val has {len(val_ids):,} tokens")
 
 ####################################################################
 
@@ -62,10 +68,8 @@ vocab_size = len(tokens)
 # decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
 
 # Train and test splits
-data = torch.tensor(tokens, dtype=torch.long)
-n = int(0.9*len(data)) # first 90% will be train, rest val
-train_data = data[:n]
-val_data = data[n:]
+train_data = torch.tensor(train_ids, dtype=torch.long)
+val_data = torch.tensor(val_ids, dtype=torch.long)
 
 # data loading
 def get_batch(split):
